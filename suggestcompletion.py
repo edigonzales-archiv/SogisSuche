@@ -4,6 +4,7 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4.QtNetwork import QNetworkAccessManager
+from PyQt4.QtNetwork import QNetworkRequest
 from qgis.core import *
 from qgis.gui import *
 
@@ -47,7 +48,14 @@ class SuggestCompletion(QLineEdit, QWidget):
             if obj != self.popup:
                 return False
             
+            print str("event type")
+            print str(QEvent.MouseButtonPress)
+            print str(ev.type())
+            print str(ev)
+            
             if ev.type() == QEvent.MouseButtonPress:
+#            if ev.type() == 1:
+                print "MousePress"
                 self.popup.hide()
                 self.setFocus()
                 return True
@@ -55,11 +63,14 @@ class SuggestCompletion(QLineEdit, QWidget):
             if ev.type() == QEvent.KeyPress:
                 consumed = False
                 key = int(ev.key())
+                print "KeyPress"
                 
                 if key == Qt.Key_Enter or key == Qt.Key_Return:
+                    print "Key_Enter/Key_Return"
                     self.doneCompletion()
                     consumed = True
-                elif key == Qt.Key_Escaped:
+                elif key == Qt.Key_Escape:
+                    print "Escape"
                     self.setFocus()
                     self.popup.hide()
                     consumed = True
@@ -77,18 +88,90 @@ class SuggestCompletion(QLineEdit, QWidget):
             # underlying C++ ..... ???
             return False
 
+    def showCompletion(self, choices, hits):
+        print len(choices)
+        print len(hits)
+#        if len(choices) == 0 or len(choices) != len(hits):
+#            return False
         
+        if len(choices) == 0:
+            return False
+        
+        pal = self.palette()
+        color  = pal.color(QPalette.Disabled, QPalette.WindowText)
+        
+        self.popup.setUpdatesEnabled(False)
+        self.popup.clear()
+        
+        print str(choices)
+        
+        for  i in range(len(choices)):
+            item = QTreeWidgetItem(self.popup)
+            item.setText(0, choices[i])
+            item.setText(1, choices[i])
+            item.setTextAlignment(1, Qt.AlignRight)
+            item.setTextColor(1, color)
+            
+        self.popup.setCurrentItem(self.popup.topLevelItem(0))
+        self.popup.resizeColumnToContents(0)
+        self.popup.resizeColumnToContents(1)
+        self.popup.adjustSize()
+        self.popup.setUpdatesEnabled(True)
+        
+        h = self.popup.sizeHintForRow(0) * min(7, len(choices) + 3)
+        print "width"
+        print self.width()
+        self.popup.resize(self.width(), h)
+        
+        self.popup.move(self.mapToGlobal(QPoint(0, self.height())))
+#        self.popup.setFocus()
+        self.popup.show()
+        self.setFocus()
+
     def doneCompletion(self):
         print "doneCompletion"
+        print "*********************************************************"
+        self.timer.stop()
+        self.popup.hide()
+        self.setFocus()
+        item = self.popup.currentItem()
+        if item:
+            self.setText(item.text(0))
+            # Warning: QMetaObject::invokeMethod: No such method SuggestCompletion::returnedPressed()
+            # ?????? aha... zum connecten.
+            QMetaObject.invokeMethod(self, "returnedPressed")
         
     def autoSuggest(self):
-        print "fooooo"
-        #str = self.
+        str = self.text()
+        url = QString(self.GSUGGEST_URL).arg(str)
+        self.networkManager.get(QNetworkRequest(QUrl(url)))
         
-    def handleNetworkData(self, reply):
-        print "baaaar"
-        print reply
+    def preventRequest(self):
+        self.timer.stop()
+        
+    def handleNetworkData(self, networkReply):
+        print networkReply
+        url = networkReply.url()
+        print str(url)
+        if not networkReply.error():
+            choices = []
+            hits = []
+            response = networkReply.readAll()
+            xml = QXmlStreamReader(response)
+            while not xml.atEnd():
+                xml.readNext()
+                if xml.tokenType() == QXmlStreamReader.StartElement:
+                    if xml.name() == "suggestion":
+                        strref = xml.attributes().value("data")
+                        choices.append(unicode(strref))
+                if xml.tokenType() == QXmlStreamReader.StartElement:
+                    if xml.name() == "num_queries":
+                        strref = xml.attributes().value("int")
+                        hits.append(str(strref))
+            self.showCompletion(choices, hits)
+        networkReply.deleteLater()
         
     def foo(self):
         print "foobar"
         
+
