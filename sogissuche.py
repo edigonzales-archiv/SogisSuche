@@ -69,8 +69,10 @@ class SogisSuche:
         
         # Create search lineedit
         self.suggest = SuggestCompletion(self.toolBar)
-        self.suggest.setPlaceholderText(QCoreApplication.translate("SogisSuche", u"Suche nach Adressen, Grundstücken, etc."))
-        self.suggest.setMaximumWidth(400);
+        # Does not work with Qt 4.6 = Ubuntu 10.04 = SO!GIS
+#        self.suggest.setPlaceholderText(QCoreApplication.translate("SogisSuche", u"Suche nach Adressen, Grundstücken, etc."))
+        # Figure out what makes sense...
+#        self.suggest.setMaximumWidth(400);
         
         # Ugly hack to get some space between the toolbar start and the lineedit
         empty = QWidget()

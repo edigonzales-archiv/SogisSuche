@@ -8,12 +8,18 @@ from PyQt4.QtNetwork import QNetworkRequest
 from qgis.core import *
 from qgis.gui import *
 
+import json
+import sys
+import traceback
+
+
 class SuggestCompletion(QLineEdit, QWidget):
     
     def __init__(self, parent):
         QLineEdit.__init__(self, parent)
         
         self.GSUGGEST_URL = "http://google.com/complete/search?output=toolbar&q=%1"
+        self.GSUGGEST_URL = "http://www.sogis1.so.ch/wsgi/search.wsgi?searchtables=&query=%1"
         
         self.popup = QTreeWidget()
         self.popup.setWindowFlags(Qt.Popup);
@@ -48,14 +54,14 @@ class SuggestCompletion(QLineEdit, QWidget):
             if obj != self.popup:
                 return False
             
-            print str("event type")
-            print str(QEvent.MouseButtonPress)
-            print str(ev.type())
-            print str(ev)
+#            print str("event type")
+#            print str(QEvent.MouseButtonPress)
+#            print str(ev.type())
+#            print str(ev)
             
             if ev.type() == QEvent.MouseButtonPress:
 #            if ev.type() == 1:
-                print "MousePress"
+#                print "MousePress"
                 self.popup.hide()
                 self.setFocus()
                 return True
@@ -63,14 +69,14 @@ class SuggestCompletion(QLineEdit, QWidget):
             if ev.type() == QEvent.KeyPress:
                 consumed = False
                 key = int(ev.key())
-                print "KeyPress"
+#                print "KeyPress"
                 
                 if key == Qt.Key_Enter or key == Qt.Key_Return:
-                    print "Key_Enter/Key_Return"
+#                    print "Key_Enter/Key_Return"
                     self.doneCompletion()
                     consumed = True
                 elif key == Qt.Key_Escape:
-                    print "Escape"
+#                    print "Escape"
                     self.setFocus()
                     self.popup.hide()
                     consumed = True
@@ -89,8 +95,8 @@ class SuggestCompletion(QLineEdit, QWidget):
             return False
 
     def showCompletion(self, choices, hits):
-        print len(choices)
-        print len(hits)
+#        print len(choices)
+#        print len(hits)
 #        if len(choices) == 0 or len(choices) != len(hits):
 #            return False
         
@@ -108,7 +114,7 @@ class SuggestCompletion(QLineEdit, QWidget):
         for  i in range(len(choices)):
             item = QTreeWidgetItem(self.popup)
             item.setText(0, choices[i])
-            item.setText(1, choices[i])
+            item.setText(1, hits[i])
             item.setTextAlignment(1, Qt.AlignRight)
             item.setTextColor(1, color)
             
@@ -119,8 +125,8 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.popup.setUpdatesEnabled(True)
         
         h = self.popup.sizeHintForRow(0) * min(7, len(choices) + 3)
-        print "width"
-        print self.width()
+#        print "width"
+#        print self.width()
         self.popup.resize(self.width(), h)
         
         self.popup.move(self.mapToGlobal(QPoint(0, self.height())))
@@ -129,8 +135,8 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.setFocus()
 
     def doneCompletion(self):
-        print "doneCompletion"
-        print "*********************************************************"
+#        print "doneCompletion"
+#        print "*********************************************************"
         self.timer.stop()
         self.popup.hide()
         self.setFocus()
@@ -150,24 +156,58 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.timer.stop()
         
     def handleNetworkData(self, networkReply):
-        print networkReply
+#        print networkReply
         url = networkReply.url()
-        print str(url)
+#        print str(url)
         if not networkReply.error():
             choices = []
             hits = []
             response = networkReply.readAll()
-            xml = QXmlStreamReader(response)
-            while not xml.atEnd():
-                xml.readNext()
-                if xml.tokenType() == QXmlStreamReader.StartElement:
-                    if xml.name() == "suggestion":
-                        strref = xml.attributes().value("data")
-                        choices.append(unicode(strref))
-                if xml.tokenType() == QXmlStreamReader.StartElement:
-                    if xml.name() == "num_queries":
-                        strref = xml.attributes().value("int")
-                        hits.append(str(strref))
+            
+            print response
+            
+            # Wie siehts mit dem sortieren aus? Ist das jetzt Kraut und Rüben oder bleibt das so wie
+            # es im String ist?
+            # Gemäss Internet ist es wirklich unordered...
+            # scheint aber hier momentan geordnet zu sein.
+            try:
+                my_response = unicode(response)
+                print my_response
+                json_response = json.loads(my_response) 
+            except Exception:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                QMessageBox.critical(None, "VeriSO", "Failed to load json reponse" + str(traceback.format_exc(exc_traceback)))                                    
+                return
+
+            
+#            print json_response
+            
+            for result in json_response['results']:
+                print result['displaytext']
+                searchtable = result['searchtable']
+                
+                print searchtable
+                
+                # Die "Titel"-Texte (z.B. Gemeinde, Flurnamen, etc.) haben keinen Searchtable.
+                if not searchtable:
+                    result_type = result['displaytext'] # z.B. Gemeinde. Bedingt aber dass diese IMMER vor den Resultaten mit dem Typ kommen.
+                    continue
+                
+                displaytext = result['displaytext']
+                choices.append(unicode(result['displaytext']))
+                hits.append(unicode(result_type))
+            
+#            xml = QXmlStreamReader(response)
+#            while not xml.atEnd():
+#                xml.readNext()
+#                if xml.tokenType() == QXmlStreamReader.StartElement:
+#                    if xml.name() == "suggestion":
+#                        strref = xml.attributes().value("data")
+#                        choices.append(unicode(strref))
+#                if xml.tokenType() == QXmlStreamReader.StartElement:
+#                    if xml.name() == "num_queries":
+#                        strref = xml.attributes().value("int")
+#                        choices.append(unicode(strref))
             self.showCompletion(choices, hits)
         networkReply.deleteLater()
         
