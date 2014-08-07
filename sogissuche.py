@@ -73,6 +73,7 @@ class SogisSuche:
 #        self.suggest.setPlaceholderText(QCoreApplication.translate("SogisSuche", u"Suche nach Adressen, Grundstücken, etc."))
         # Figure out what makes sense...
 #        self.suggest.setMaximumWidth(400);
+        self.suggest.setMinimumWidth(600);
         
         # Ugly hack to get some space between the toolbar start and the lineedit
         empty = QWidget()
