@@ -36,7 +36,9 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.popup.header().hide()
         
-        self.popup.installEventFilter(self);
+        self.popup.installEventFilter(self)
+        
+        self.popup.viewport().installEventFilter(self)
         
         self.connect(self.popup, SIGNAL("itemClicked(QTreeWidgetItem, int)"), self.doneCompletion)
         
@@ -45,13 +47,17 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.timer.setInterval(500);
         self.connect(self.timer, SIGNAL("timeout()"), self.autoSuggest);
         self.connect(self, SIGNAL("textEdited(QString)"), self.timer.start)
+        # kann man das ähnlich wie im weblient machen? falls gbnr zu beginn dann nur grundstücke suchen etc? -> timer wieder stoppen und was es noch braucht?!
         
         self.networkManager = QNetworkAccessManager(self)
         self.connect(self.networkManager, SIGNAL("finished(QNetworkReply*)"), self.handleNetworkData)
         
     def eventFilter(self, obj, ev):
         try:
-            if obj != self.popup:
+            print obj
+            
+            if obj != self.popup and obj != self.popup.viewport():
+                print "obj nicht popup oder viewport"
                 return False
             
 #            print str("event type")
@@ -62,21 +68,22 @@ class SuggestCompletion(QLineEdit, QWidget):
             if ev.type() == QEvent.MouseButtonPress:
 #            if ev.type() == 1:
 #                print "MousePress"
-                self.popup.hide()
-                self.setFocus()
+#                self.popup.hide()
+#                self.setFocus()
+                self.doneCompletion()
                 return True
                 
-            if ev.type() == QEvent.KeyPress:
+            elif ev.type() == QEvent.KeyPress:
                 consumed = False
                 key = int(ev.key())
-#                print "KeyPress"
+                print "KeyPress"
                 
                 if key == Qt.Key_Enter or key == Qt.Key_Return:
-#                    print "Key_Enter/Key_Return"
+                    print "Key_Enter/Key_Return"
                     self.doneCompletion()
                     consumed = True
                 elif key == Qt.Key_Escape:
-#                    print "Escape"
+                    print "Escape"
                     self.setFocus()
                     self.popup.hide()
                     consumed = True
@@ -92,6 +99,7 @@ class SuggestCompletion(QLineEdit, QWidget):
             return False
         except:
             # underlying C++ ..... ???
+            print "underlying..."
             return False
 
     def showCompletion(self, choices, hits):
@@ -109,7 +117,7 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.popup.setUpdatesEnabled(False)
         self.popup.clear()
         
-        print str(choices)
+#        print str(choices)
         
         for  i in range(len(choices)):
             item = QTreeWidgetItem(self.popup)
@@ -135,14 +143,15 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.setFocus()
 
     def doneCompletion(self):
-#        print "doneCompletion"
-#        print "*********************************************************"
+##        print "doneCompletion"
+##        print "*********************************************************"
         self.timer.stop()
         self.popup.hide()
         self.setFocus()
         item = self.popup.currentItem()
         if item:
             self.setText(item.text(0))
+            print self.text()
             # Warning: QMetaObject::invokeMethod: No such method SuggestCompletion::returnedPressed()
             # ?????? aha... zum connecten.
             QMetaObject.invokeMethod(self, "returnedPressed")
@@ -164,7 +173,7 @@ class SuggestCompletion(QLineEdit, QWidget):
             hits = []
             response = networkReply.readAll()
             
-            print response
+#            print response
             
             # Wie siehts mit dem sortieren aus? Ist das jetzt Kraut und Rüben oder bleibt das so wie
             # es im String ist?
@@ -172,7 +181,7 @@ class SuggestCompletion(QLineEdit, QWidget):
             # scheint aber hier momentan geordnet zu sein.
             try:
                 my_response = unicode(response)
-                print my_response
+#                print my_response
                 json_response = json.loads(my_response) 
             except Exception:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -183,10 +192,10 @@ class SuggestCompletion(QLineEdit, QWidget):
 #            print json_response
             
             for result in json_response['results']:
-                print result['displaytext']
+#                print result['displaytext']
                 searchtable = result['searchtable']
                 
-                print searchtable
+#                print searchtable
                 
                 # Die "Titel"-Texte (z.B. Gemeinde, Flurnamen, etc.) haben keinen Searchtable.
                 if not searchtable:
@@ -214,4 +223,3 @@ class SuggestCompletion(QLineEdit, QWidget):
     def foo(self):
         print "foobar"
         
-
