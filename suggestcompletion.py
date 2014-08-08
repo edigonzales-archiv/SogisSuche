@@ -36,10 +36,11 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.popup.header().hide()
         
-        self.popup.installEventFilter(self)
+        self.popup.viewport().installEventFilter(self)        
+#        self.popup.installEventFilter(self)
         
-        self.popup.viewport().installEventFilter(self)
         
+        # Brauchts das überhaupt?
         self.connect(self.popup, SIGNAL("itemClicked(QTreeWidgetItem, int)"), self.doneCompletion)
         
         self.timer = QTimer(self)
@@ -54,8 +55,6 @@ class SuggestCompletion(QLineEdit, QWidget):
         
     def eventFilter(self, obj, ev):
         try:
-            print obj
-            
             if obj != self.popup and obj != self.popup.viewport():
                 print "obj nicht popup oder viewport"
                 return False
@@ -70,8 +69,9 @@ class SuggestCompletion(QLineEdit, QWidget):
 #                print "MousePress"
 #                self.popup.hide()
 #                self.setFocus()
-                self.doneCompletion()
-                return True
+#                self.doneCompletion()
+#                return True
+                print "hhu"
                 
             elif ev.type() == QEvent.KeyPress:
                 consumed = False
@@ -143,8 +143,6 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.setFocus()
 
     def doneCompletion(self):
-##        print "doneCompletion"
-##        print "*********************************************************"
         self.timer.stop()
         self.popup.hide()
         self.setFocus()
@@ -154,7 +152,7 @@ class SuggestCompletion(QLineEdit, QWidget):
             print self.text()
             # Warning: QMetaObject::invokeMethod: No such method SuggestCompletion::returnedPressed()
             # ?????? aha... zum connecten.
-            QMetaObject.invokeMethod(self, "returnedPressed")
+            QMetaObject.invokeMethod(self, "returnPressed")
         
     def autoSuggest(self):
         str = self.text()
@@ -165,31 +163,23 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.timer.stop()
         
     def handleNetworkData(self, networkReply):
-#        print networkReply
         url = networkReply.url()
-#        print str(url)
         if not networkReply.error():
-            choices = []
-            hits = []
+            self.choices = []
+            self.hits = []
             response = networkReply.readAll()
-            
-#            print response
-            
+                        
             # Wie siehts mit dem sortieren aus? Ist das jetzt Kraut und Rüben oder bleibt das so wie
             # es im String ist?
             # Gemäss Internet ist es wirklich unordered...
             # scheint aber hier momentan geordnet zu sein.
             try:
                 my_response = unicode(response)
-#                print my_response
                 json_response = json.loads(my_response) 
             except Exception:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                QMessageBox.critical(None, "VeriSO", "Failed to load json reponse" + str(traceback.format_exc(exc_traceback)))                                    
+                QMessageBox.critical(None, "SogisSuche", "Failed to load json reponse" + str(traceback.format_exc(exc_traceback)))                                    
                 return
-
-            
-#            print json_response
             
             for result in json_response['results']:
 #                print result['displaytext']
@@ -203,21 +193,10 @@ class SuggestCompletion(QLineEdit, QWidget):
                     continue
                 
                 displaytext = result['displaytext']
-                choices.append(unicode(result['displaytext']))
-                hits.append(unicode(result_type))
+                self.choices.append(unicode(result['displaytext']))
+                self.hits.append(unicode(result_type))
             
-#            xml = QXmlStreamReader(response)
-#            while not xml.atEnd():
-#                xml.readNext()
-#                if xml.tokenType() == QXmlStreamReader.StartElement:
-#                    if xml.name() == "suggestion":
-#                        strref = xml.attributes().value("data")
-#                        choices.append(unicode(strref))
-#                if xml.tokenType() == QXmlStreamReader.StartElement:
-#                    if xml.name() == "num_queries":
-#                        strref = xml.attributes().value("int")
-#                        choices.append(unicode(strref))
-            self.showCompletion(choices, hits)
+            self.showCompletion(self.choices, self.hits)
         networkReply.deleteLater()
         
     def foo(self):

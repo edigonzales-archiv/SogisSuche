@@ -75,6 +75,10 @@ class SogisSuche:
 #        self.suggest.setMaximumWidth(400);
         self.suggest.setMinimumWidth(600);
         
+        QObject.connect(self.suggest, SIGNAL("returnPressed()"), self.doSomething)
+
+        
+        
         # Ugly hack to get some space between the toolbar start and the lineedit
         empty = QWidget()
         empty.setMinimumSize(3, 3)
@@ -84,6 +88,11 @@ class SogisSuche:
         # Add search lineedit to toolbar
         self.suggestAction = self.toolBar.addWidget(self.suggest)
         self.suggestAction.setVisible(True)
+        
+        
+    def doSomething(self):
+        print "HAAAAAAAAAAAAAAAALLLO"
+        
         
     def unload(self):
         # Remove the plugin menu item and icon
