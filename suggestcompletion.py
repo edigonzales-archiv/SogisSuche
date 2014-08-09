@@ -36,12 +36,10 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.popup.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.popup.header().hide()
         
-        self.popup.viewport().installEventFilter(self)        
-#        self.popup.installEventFilter(self)
-        
-        
-        # Brauchts das überhaupt?
-        self.connect(self.popup, SIGNAL("itemClicked(QTreeWidgetItem, int)"), self.doneCompletion)
+        self.popup.installEventFilter(self)
+                
+        # for the MousePressEvent
+        self.connect(self.popup, SIGNAL("itemClicked(QTreeWidgetItem*, int)"), self.doneCompletion)
         
         self.timer = QTimer(self)
         self.timer.setSingleShot(True);
@@ -53,37 +51,25 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.networkManager = QNetworkAccessManager(self)
         self.connect(self.networkManager, SIGNAL("finished(QNetworkReply*)"), self.handleNetworkData)
         
+
+        
     def eventFilter(self, obj, ev):
         try:
-            if obj != self.popup and obj != self.popup.viewport():
-                print "obj nicht popup oder viewport"
+            if obj != self.popup:
+                print "obj != self.popup"
                 return False
-            
-#            print str("event type")
-#            print str(QEvent.MouseButtonPress)
-#            print str(ev.type())
-#            print str(ev)
-            
-            if ev.type() == QEvent.MouseButtonPress:
-#            if ev.type() == 1:
-#                print "MousePress"
-#                self.popup.hide()
-#                self.setFocus()
-#                self.doneCompletion()
-#                return True
-                print "hhu"
-                
-            elif ev.type() == QEvent.KeyPress:
+    
+            if ev.type() == QEvent.KeyPress:
                 consumed = False
                 key = int(ev.key())
-                print "KeyPress"
+                print "QEvent.KeyPress"
                 
                 if key == Qt.Key_Enter or key == Qt.Key_Return:
                     print "Key_Enter/Key_Return"
                     self.doneCompletion()
                     consumed = True
                 elif key == Qt.Key_Escape:
-                    print "Escape"
+                    print "Key_Escape"
                     self.setFocus()
                     self.popup.hide()
                     consumed = True
@@ -143,15 +129,14 @@ class SuggestCompletion(QLineEdit, QWidget):
         self.setFocus()
 
     def doneCompletion(self):
+        print "doneCompletion"        
         self.timer.stop()
         self.popup.hide()
         self.setFocus()
         item = self.popup.currentItem()
         if item:
             self.setText(item.text(0))
-            print self.text()
-            # Warning: QMetaObject::invokeMethod: No such method SuggestCompletion::returnedPressed()
-            # ?????? aha... zum connecten.
+            print str(self.text())
             QMetaObject.invokeMethod(self, "returnPressed")
         
     def autoSuggest(self):
