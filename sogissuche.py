@@ -22,9 +22,14 @@
 # Import the PyQt and QGIS libraries
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
+from PyQt4.QtNetwork import QNetworkAccessManager
+from PyQt4.QtNetwork import QNetworkRequest
 from qgis.core import *
+from qgis.gui import *
+
 from sogissuchedialog import SogisSucheDialog
 from suggestcompletion import SuggestCompletion
+
 import resources_rc
 
 try:
@@ -59,6 +64,14 @@ class SogisSuche:
         # Create the dialog (after translation) and keep reference
         self.dlg = SogisSucheDialog(self.iface.mainWindow())
         self.dlg.initGui()
+        
+        # Create Rubberband
+        self.rubberBand = QgsRubberBand(self.iface.mapCanvas(), True)
+        self.rubberBand.setColor(QColor(255, 0, 0))
+        self.rubberBand.setWidth(4)
+        
+        # VertexMarker
+        self.marker = None
 
     def initGui(self):
         # Create action that will start plugin configuration
@@ -89,22 +102,77 @@ class SogisSuche:
         
         emptyWidget.setLayout(toolBarLayout)
         self.toolBar.addWidget(emptyWidget)
-        
-        # ACHTUNG! TODO
-        # preventSuggest
-        
+
         QObject.connect(self.toolButtonReset, SIGNAL("clicked()"), self.resetSuggest)
-        QObject.connect(self.suggest, SIGNAL("returnPressed()"), self.doSomething)
+        QObject.connect(self.suggest, SIGNAL("searchEnterered(QString, QString)"), self.getSearchGeometry)
         
     def resetSuggest(self):
         self.suggest.clear()
-        # Und Rubberband löschen? Falls nein, wie sonst?
         
+        self.rubberBand.reset(True)
         
-    def doSomething(self):
-        print "HAAAAAAAAAAAAAAAALLLO"
+        self.iface.mapCanvas().scene().removeItem(self.marker)  
+        self.marker = None
         
+    def getSearchGeometry(self, item, searchTable):
+        GEOM_URL = "http://www.sogis1.so.ch/wsgi/getSearchGeom.wsgi?searchtable=%1&displaytext=%2"
+        url = QString(GEOM_URL).arg(searchTable).arg(item)
+#        print unicode(url)
+    
+        self.networkAccess = QNetworkAccessManager()         
+        QObject.connect(self.networkAccess, SIGNAL("finished(QNetworkReply*)"), self.receiveGeometry)
+        self.networkAccess.get(QNetworkRequest(QUrl(url))) 
+       
+    def receiveGeometry(self, networkReply): 
+        bytes = networkReply.readAll()
+        wkt = QString(bytes)
+        print wkt
         
+        geom = QgsGeometry.fromWkt(wkt)
+        
+        # Rubberband or Vertexmarker
+        wkbType = geom.wkbType()
+        if wkbType == 1 or wkbType == 5 or wkbType == 8 or wkbType == 11:
+            self.rubberBand.reset(True) # reset rubberband
+            
+            # Geht das nicht eleganter? Schon bei den CadTools ein Geknorze...
+            self.iface.mapCanvas().scene().removeItem(self.marker)  
+            self.marker = None
+
+            self.marker = QgsVertexMarker(self.iface.mapCanvas())
+            self.marker.setIconType(3)
+            self.marker.setColor(QColor(255,0,0))
+            self.marker.setIconSize(20)
+            self.marker.setPenWidth (3)
+            
+            if wkbType == 1 or wkbType == 8: # (Multi)Point(25D)
+                self.marker.setCenter(geom.asPoint())
+            else:
+                self.marker.setCenter(geom.asMultiPoint())
+                
+        else:
+            self.iface.mapCanvas().scene().removeItem(self.marker)  
+            self.marker = None
+            
+            if wkbType == 3 or wkbType == 6 or wkbType == 10 or wkbType == 13:
+                isPolygon = True # (Multi)Polygon(25D)
+            else:
+                isPolygon = False
+            
+            # Eventuell in Settings wählbar, ob man immer neues will?
+            self.rubberBand.reset(isPolygon)
+            self.rubberBand.addGeometry(geom, None)
+        
+        # Zoom to extent
+        bbox = geom.boundingBox() # Wie zoomt QGIS zum Punkt?
+        bbox.scale(1.2)
+        
+        self.iface.mapCanvas().setExtent(bbox)
+        self.iface.mapCanvas().refresh() 
+        
+        # Stop timer
+        self.suggest.preventRequest()
+                
     def unload(self):
         # Remove the plugin menu item and icon
         self.iface.removePluginMenu(u"&Sogis Suche", self.action)

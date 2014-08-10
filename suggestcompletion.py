@@ -17,17 +17,21 @@ class SuggestCompletion(QLineEdit, QWidget):
     
     def __init__(self, parent):
         QLineEdit.__init__(self, parent)
+
+        self.settings = QSettings("CatAIS","SogisSuche")
         
-        self.GSUGGEST_URL = "http://google.com/complete/search?output=toolbar&q=%1"
-        self.GSUGGEST_URL = "http://www.sogis1.so.ch/wsgi/search.wsgi?searchtables=&query=%1"
-        
+#        self.SUGGEST_URL = "http://google.com/complete/search?output=toolbar&q=%1"
+#        self.SUGGEST_URL = "http://www.sogis1.so.ch/wsgi/search.wsgi?searchtables=&query=%1"
+        self.SUGGEST_URL = "http://www.sogis1.so.ch/wsgi/search.wsgi?query=%1&searchtables=%2"
+
         self.popup = QTreeWidget()
         self.popup.setWindowFlags(Qt.Popup);
         self.popup.setFocusPolicy(Qt.NoFocus);
         self.popup.setFocusProxy(parent);
         self.popup.setMouseTracking(True);
         
-        self.popup.setColumnCount(2);
+        self.popup.setColumnCount(3);
+        self.popup.hideColumn(2)
         self.popup.setUniformRowHeights(True);
         self.popup.setRootIsDecorated(False);
         self.popup.setEditTriggers(QTreeWidget.NoEditTriggers)
@@ -50,8 +54,6 @@ class SuggestCompletion(QLineEdit, QWidget):
         
         self.networkManager = QNetworkAccessManager(self)
         self.connect(self.networkManager, SIGNAL("finished(QNetworkReply*)"), self.handleNetworkData)
-        
-
         
     def eventFilter(self, obj, ev):
         try:
@@ -88,12 +90,7 @@ class SuggestCompletion(QLineEdit, QWidget):
             print "underlying..."
             return False
 
-    def showCompletion(self, choices, hits):
-#        print len(choices)
-#        print len(hits)
-#        if len(choices) == 0 or len(choices) != len(hits):
-#            return False
-        
+    def showCompletion(self, choices, hits, searchTables):        
         if len(choices) == 0:
             return False
         
@@ -102,15 +99,14 @@ class SuggestCompletion(QLineEdit, QWidget):
         
         self.popup.setUpdatesEnabled(False)
         self.popup.clear()
-        
-#        print str(choices)
-        
+                
         for  i in range(len(choices)):
             item = QTreeWidgetItem(self.popup)
             item.setText(0, choices[i])
             item.setText(1, hits[i])
             item.setTextAlignment(1, Qt.AlignRight)
             item.setTextColor(1, color)
+            item.setText(2, searchTables[i])
             
         self.popup.setCurrentItem(self.popup.topLevelItem(0))
         self.popup.resizeColumnToContents(0)
@@ -136,12 +132,25 @@ class SuggestCompletion(QLineEdit, QWidget):
         item = self.popup.currentItem()
         if item:
             self.setText(item.text(0))
-            print unicode(self.text())
+#            print unicode(self.text())
+#            print item.text(1)
+#            print item.text(2)
             QMetaObject.invokeMethod(self, "returnPressed")
+            self.emit(SIGNAL("searchEnterered(QString, QString)"),  unicode(item.text(0)), item.text(2))
         
     def autoSuggest(self):
+        # get additional search tables
+        searchTables = ""
+        size = self.settings.beginReadArray("options/searchtables")
+        for i in range(size):
+            self.settings.setArrayIndex(i)
+            searchTables += self.settings.value("type").toString() + ","
+            searchTables = searchTables[:-1]
+        self.settings.endArray();
+    
         str = self.text()
-        url = QString(self.GSUGGEST_URL).arg(str)
+        url = QString(self.SUGGEST_URL).arg(str).arg(searchTables)
+#        print url
         self.networkManager.get(QNetworkRequest(QUrl(url)))
         
     def preventRequest(self):
@@ -150,8 +159,11 @@ class SuggestCompletion(QLineEdit, QWidget):
     def handleNetworkData(self, networkReply):
         url = networkReply.url()
         if not networkReply.error():
-            self.choices = []
-            self.hits = []
+            # TODO: Rename lists
+            choices = []
+            hits = []
+            searchTables = []
+            
             response = networkReply.readAll()
                         
             # Wie siehts mit dem sortieren aus? Ist das jetzt Kraut und Rüben oder bleibt das so wie
@@ -178,10 +190,11 @@ class SuggestCompletion(QLineEdit, QWidget):
                     continue
                 
                 displaytext = result['displaytext']
-                self.choices.append(unicode(result['displaytext']))
-                self.hits.append(unicode(result_type))
+                choices.append(unicode(result['displaytext']))
+                hits.append(unicode(result_type))
+                searchTables.append(searchtable)
             
-            self.showCompletion(self.choices, self.hits)
+            self.showCompletion(choices, hits, searchTables)
         networkReply.deleteLater()
         
     def foo(self):
