@@ -27,6 +27,14 @@ from sogissuchedialog import SogisSucheDialog
 from suggestcompletion import SuggestCompletion
 import resources_rc
 
+try:
+    _encoding = QApplication.UnicodeUTF8
+    def _translate(context, text, disambig):
+        return QApplication.translate(context, text, disambig, _encoding)
+except AttributeError:
+    def _translate(context, text, disambig):
+        return QApplication.translate(context, text, disambig)
+
 class SogisSuche:
 
     def __init__(self, iface):
@@ -49,13 +57,12 @@ class SogisSuche:
                 QCoreApplication.installTranslator(self.translator)
 
         # Create the dialog (after translation) and keep reference
-        self.dlg = SogisSucheDialog()
+        self.dlg = SogisSucheDialog(self.iface.mainWindow())
+        self.dlg.initGui()
 
     def initGui(self):
         # Create action that will start plugin configuration
-        self.action = QAction(
-            QIcon(":/plugins/sogissuche/icon.png"),
-            u"Text for the menu item", self.iface.mainWindow())
+        self.action = QAction(_translate("SOGIS_Suche", "Settings",  None), self.iface.mainWindow())
         # connect the action to the run method
         QObject.connect(self.action, SIGNAL("triggered()"), self.run)
 
@@ -64,30 +71,34 @@ class SogisSuche:
         self.iface.addPluginToMenu(u"&Sogis Suche", self.action)
         
         # Create own toolbar
-        self.toolBar = self.iface.addToolBar("SO!GIS Suche")
+        self.toolBar = self.iface.addToolBar(_translate("SOGIS_Suche", "SO!GIS Search",  None))
         self.toolBar.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)) 
+                
+        emptyWidget = QWidget(self.toolBar)
+        toolBarLayout = QHBoxLayout(emptyWidget)
+        toolBarLayout.setMargin(1)
         
-        # Create search lineedit
-        self.suggest = SuggestCompletion(self.toolBar)
-        # Does not work with Qt 4.6 = Ubuntu 10.04 = SO!GIS
-#        self.suggest.setPlaceholderText(QCoreApplication.translate("SogisSuche", u"Suche nach Adressen, Grundstücken, etc."))
-        # Figure out what makes sense...
-#        self.suggest.setMaximumWidth(400);
+        self.suggest = SuggestCompletion(emptyWidget)
         self.suggest.setMinimumWidth(600);
+        toolBarLayout.addWidget(self.suggest)
         
+        self.toolButtonReset = QToolButton(emptyWidget)
+        self.toolButtonReset.setIcon(QIcon(':/plugins/sogissuche/icons/reset.svg'))
+        
+        toolBarLayout.addWidget(self.toolButtonReset)
+        
+        emptyWidget.setLayout(toolBarLayout)
+        self.toolBar.addWidget(emptyWidget)
+        
+        # ACHTUNG! TODO
+        # preventSuggest
+        
+        QObject.connect(self.toolButtonReset, SIGNAL("clicked()"), self.resetSuggest)
         QObject.connect(self.suggest, SIGNAL("returnPressed()"), self.doSomething)
-
         
-        
-        # Ugly hack to get some space between the toolbar start and the lineedit
-        empty = QWidget()
-        empty.setMinimumSize(3, 3)
-        empty.setMaximumSize(3, 3)
-        self.toolBar.addWidget(empty)
-
-        # Add search lineedit to toolbar
-        self.suggestAction = self.toolBar.addWidget(self.suggest)
-        self.suggestAction.setVisible(True)
+    def resetSuggest(self):
+        self.suggest.clear()
+        # Und Rubberband löschen? Falls nein, wie sonst?
         
         
     def doSomething(self):
@@ -102,7 +113,6 @@ class SogisSuche:
         # Remove own toolbar
         self.iface.mainWindow().removeToolBar(self.toolBar)
 
-    # run method that performs all the real work
     def run(self):
         # show the dialog
         self.dlg.show()

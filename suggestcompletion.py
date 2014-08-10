@@ -136,7 +136,7 @@ class SuggestCompletion(QLineEdit, QWidget):
         item = self.popup.currentItem()
         if item:
             self.setText(item.text(0))
-            print str(self.text())
+            print unicode(self.text())
             QMetaObject.invokeMethod(self, "returnPressed")
         
     def autoSuggest(self):
